@@ -15,7 +15,7 @@ with LOG.open("w", newline="") as f:
     subprocess.run(["python3","projects/test_run_4/s1_inputs.py","--yamls", *EXPERIMENTS[0][1],"--out_dir","msa_4"], check=True)
 
     for batch, yamls in EXPERIMENTS:
-        out_dir = f"output_test_run_30_b{batch}"
+        out_dir = f"output_test_run_4_b{batch}"
         
         subprocess.run(["cp","-r","msa_4",out_dir], check=True)
         
