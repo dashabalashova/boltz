@@ -61,7 +61,7 @@ def main():
     # Paths
     out_dir = Path(args.out_dir)
     processed_dir = out_dir / "processed"
-    cache_dir = Path("/cache").expanduser()
+    cache_dir = Path("cache").expanduser()
     mol_dir = cache_dir / "mols"
 
     # Load manifest
