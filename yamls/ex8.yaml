@@ -1,0 +1,12 @@
+version: 1
+sequences:
+  - protein:
+      id: A
+      sequence: KMHYTMQNWDVGVREGFHQVMGWCPTAHDYEKRNDWQDAINKAIWYAIQQINVYRWFESEKEWSKQRFERIALEWHTVFQIGCSIMQTHA
+  - ligand:
+      id: B
+      smiles: 'CCN'
+properties:
+  - affinity:
+      binder: B
+      strength: strong

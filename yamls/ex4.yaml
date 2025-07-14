@@ -1,0 +1,11 @@
+version: 1  # Optional, defaults to 1
+sequences:
+  - protein:
+      id: A
+      sequence: MALWMRLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTPKTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQKRGIVEQCCTSICSLYQLENYCN
+  - ligand:
+      id: B
+      smiles: 'CC(=O)OC1=CC=CC=C1C(=O)O'
+properties:
+  - affinity:
+      binder: B

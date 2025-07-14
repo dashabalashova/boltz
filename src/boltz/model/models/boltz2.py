@@ -606,23 +606,48 @@ class Boltz2(LightningModule):
             )
 
         if self.affinity_prediction:
-            pad_token_mask = feats["token_pad_mask"][0]
-            rec_mask = feats["mol_type"][0] == 0
-            rec_mask = rec_mask * pad_token_mask
-            lig_mask = feats["affinity_token_mask"][0].to(torch.bool)
-            lig_mask = lig_mask * pad_token_mask
-            cross_pair_mask = (
-                lig_mask[:, None] * rec_mask[None, :]
-                + rec_mask[:, None] * lig_mask[None, :]
-                + lig_mask[:, None] * lig_mask[None, :]
-            )
-            z_affinity = z * cross_pair_mask[None, :, :, None]
+            batch_size = z.shape[0]
+            if batch_size==1:
+                pad_token_mask = feats["token_pad_mask"][0]
+                rec_mask = feats["mol_type"][0] == 0
+                rec_mask = rec_mask * pad_token_mask
+                lig_mask = feats["affinity_token_mask"][0].to(torch.bool)
+                lig_mask = lig_mask * pad_token_mask
+                cross_pair_mask = (
+                    lig_mask[:, None] * rec_mask[None, :]
+                    + rec_mask[:, None] * lig_mask[None, :]
+                    + lig_mask[:, None] * lig_mask[None, :]
+                )
+                z_affinity = z * cross_pair_mask[None, :, :, None]
 
-            argsort = torch.argsort(dict_out["iptm"], descending=True)
-            best_idx = argsort[0].item()
-            coords_affinity = dict_out["sample_atom_coords"].detach()[best_idx][
-                None, None
-            ]
+                argsort = torch.argsort(dict_out["iptm"], descending=True)
+                best_idx = argsort[0].item()
+                coords_affinity = dict_out["sample_atom_coords"].detach()[best_idx][
+                    None, None
+                ]
+            else:
+                z_lst = []
+                for n in range(batch_size):
+                    pad_token_mask = feats["token_pad_mask"][n]
+                    rec_mask = feats["mol_type"][n] == 0
+                    rec_mask = rec_mask * pad_token_mask
+                    lig_mask = feats["affinity_token_mask"][n].to(torch.bool)
+                    lig_mask = lig_mask * pad_token_mask
+                    cross_pair_mask = (
+                        lig_mask[:, None] * rec_mask[None, :]
+                        + rec_mask[:, None] * lig_mask[None, :]
+                        + lig_mask[:, None] * lig_mask[None, :]
+                    )
+                    z_affinity = z[n].unsqueeze(0) * cross_pair_mask[None, :, :, None]
+                    z_lst.append(z_affinity)
+                z_affinity = torch.stack(z_lst).squeeze(1)
+
+                best_idx = dict_out["iptm"].view(batch_size, -1).argmax(dim=1)
+                
+                multiplicity = dict_out["sample_atom_coords"].shape[0] // batch_size
+                best_idx_global = best_idx + torch.arange(batch_size, device=best_idx.device) * multiplicity
+                coords_affinity = dict_out["sample_atom_coords"].detach()[best_idx_global]
+            
             s_inputs = self.input_embedder(feats, affinity=True)
 
             with torch.autocast("cuda", enabled=False):

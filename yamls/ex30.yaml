@@ -1,0 +1,12 @@
+version: 1
+sequences:
+  - protein:
+      id: A
+      sequence: PQITLWQRPLVTIKIGGQLKEALLDTGADDTVLEEMSLPGRWKPKMIGGIGFIKVRQYDQILIEICGHKAIGTVLVGPTPVNIIGRNLLTQIGCTLNF
+  - ligand:
+      id: B
+      smiles: '[H][C@@]12CCO[C@]1([H])OC[C@@H]2OC(=O)N[C@@H](CC1=CC=CC=C1)[C@H](O)CN(CC(C)C)S(=O)(=O)C1=CC=C(N)C=C1'
+properties:
+  - affinity:
+      binder: B
+      strength: strong

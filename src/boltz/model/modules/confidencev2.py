@@ -119,7 +119,7 @@ class ConfidenceModule(nn.Module):
         use_kernels: bool = False,
     ):
         if run_sequentially and multiplicity > 1:
-            assert z.shape[0] == 1, "Not supported with batch size > 1"
+            batch_size = s_inputs.shape[0]
             out_dicts = []
             for sample_idx in range(multiplicity):
                 out_dicts.append(  # noqa: PERF401
@@ -127,7 +127,7 @@ class ConfidenceModule(nn.Module):
                         s_inputs,
                         s,
                         z,
-                        x_pred[sample_idx : sample_idx + 1],
+                        x_pred[sample_idx * batch_size : sample_idx * batch_size + batch_size],
                         feats,
                         pred_distogram_logits,
                         multiplicity=1,

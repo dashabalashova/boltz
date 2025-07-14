@@ -1,0 +1,11 @@
+version: 1
+sequences:
+  - protein:
+      id: A
+      sequence: MQVQTGLYGGWYSRQLLNWRGNMVIHSDAYCWQRFTGNGDRFCWFFDHLQDYYEQVLQSGGCSQFRVAWKTWATSERVGAGPWHLPMVDMGTHRPRAHGQEPPKKHKCYLWAIKGHNNGIFQLEQWVSQPWIFYLLY
+  - ligand:
+      id: B
+      smiles: 'C(CO)O'
+properties:
+  - affinity:
+      binder: B

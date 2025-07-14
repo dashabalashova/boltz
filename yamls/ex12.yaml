@@ -1,0 +1,12 @@
+version: 1
+sequences:
+  - protein:
+      id: A
+      sequence: YRKCPVKQWASGIDMNSECVPFWDLGGATWQEKHNPKGTEILFNNYGYQGNQRAPLWGSPIPPQRQTPWPHKNRCGREDMYMWTGTLTRHDYDYVRYYTISAMLQQNTWDFAVNWFCTWHKDW
+  - ligand:
+      id: B
+      smiles: 'C1CCO1'
+properties:
+  - affinity:
+      binder: B
+      strength: strong
