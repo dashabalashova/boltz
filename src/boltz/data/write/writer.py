@@ -91,6 +91,9 @@ class BoltzWriter(BasePredictionWriter):
         for n, (record, coord, pad_mask) in enumerate(zip(records, coords, pad_masks), start=0):
             
             idx_to_rank = idx_to_rank_list[n]
+
+            if len(pad_mask.shape)>1:
+                pad_mask = pad_mask.squeeze(0)
             
             # Load the structure
             path = self.data_dir / f"{record.id}.npz"
