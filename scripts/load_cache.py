@@ -4,7 +4,7 @@ from pathlib import Path
 import urllib.request
 import tarfile
 
-cache_dir = Path("cache").expanduser()
+cache_dir = Path("~/.boltz").expanduser()
 cache_dir.mkdir(parents=True, exist_ok=True)
 checkpoint_path = cache_dir / "boltz2_aff.ckpt"
 mol_tar_path = cache_dir / "mols.tar"
