@@ -1,4 +1,4 @@
-print('Loading cache...')
+print('Loading cache to ~/.boltz')
 
 from pathlib import Path
 import urllib.request

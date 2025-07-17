@@ -55,7 +55,7 @@ def main():
     # Load manifest and set directories
     manifest_path = Path(args.out_dir) / "processed/manifest.json"
     manifest = Manifest.load(manifest_path)
-    cache_dir = Path("cache").expanduser()
+    cache_dir = Path("~/.boltz").expanduser()
     mol_dir = cache_dir / "mols"
     out_dir = Path(args.out_dir)
 

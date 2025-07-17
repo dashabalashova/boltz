@@ -20,8 +20,8 @@ def parse_args():
     parser.add_argument(
         '--cache_dir', '-c',
         type=str,
-        default='cache',
-        help='Cache directory (default: cache)'
+        default='~/.boltz',
+        help='Cache directory (default: ~/.boltz)'
     )
     parser.add_argument(
         '--ccd_path',
