@@ -157,6 +157,8 @@ class BoltzSteeringParams:
     fk_lambda: float = 4.0
     fk_resampling_interval: int = 3
     guidance_update: bool = True
+    physical_guidance_update: bool = False
+    contact_guidance_update: bool = True
     num_gd_steps: int = 20
 
 
