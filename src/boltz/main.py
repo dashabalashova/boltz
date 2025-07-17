@@ -942,6 +942,12 @@ def cli() -> None:
     is_flag=True,
     help="Whether to disable the kernels. Default False",
 )
+@click.option(
+    "--batch_size",
+    type=int,
+    help="Batch size. Default: 1.",
+    default=1
+)
 def predict(  # noqa: C901, PLR0915, PLR0912
     data: str,
     out_dir: str,
@@ -975,6 +981,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     subsample_msa: bool = True,
     num_subsampled_msa: int = 1024,
     no_kernels: bool = False,
+    batch_size: int = 1
 ) -> None:
     """Run predictions with Boltz."""
     # If cpu, write a friendly warning
@@ -1155,6 +1162,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
                 template_dir=processed.template_dir,
                 extra_mols_dir=processed.extra_mols_dir,
                 override_method=method,
+                batch_size=batch_size
             )
         else:
             data_module = BoltzInferenceDataModule(
@@ -1163,6 +1171,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
                 msa_dir=processed.msa_dir,
                 num_workers=num_workers,
                 constraints_dir=processed.constraints_dir,
+                batch_size=batch_size
             )
 
         # Load model
@@ -1243,6 +1252,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             extra_mols_dir=processed.extra_mols_dir,
             override_method="other",
             affinity=True,
+            batch_size=batch_size
         )
 
         predict_affinity_args = {
@@ -1406,6 +1416,12 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     is_flag=True,
     help="Whether to disable the kernels. Default False",
 )
+@click.option(
+    "--batch_size",
+    type=int,
+    help="Batch size. Default: 1.",
+    default=1
+)
 def screen(
     data: str,
     out_dir: str,
@@ -1428,6 +1444,7 @@ def screen(
     subsample_msa: bool = True,
     num_subsampled_msa: int = 1024,
     no_kernels: bool = False,
+    batch_size: int = 1
 ) -> None:
     """Run virtual screening with Boltz-2.
     
@@ -1648,6 +1665,7 @@ def screen(
                 template_dir=processed.template_dir,
                 extra_mols_dir=processed.extra_mols_dir,
                 override_method=None,
+                batch_size=batch_size
             )
 
             # Load model
@@ -1707,6 +1725,7 @@ def screen(
             extra_mols_dir=processed.extra_mols_dir,
             override_method="other",
             affinity=True,
+            batch_size=batch_size
         )
 
         predict_affinity_args = {
@@ -1732,7 +1751,9 @@ def screen(
             ema=False,
             pairformer_args=asdict(pairformer_args),
             msa_args=asdict(msa_args),
-            steering_args={"fk_steering": False, "guidance_update": False},
+            steering_args={"fk_steering": False, "guidance_update": False, 
+                           "physical_guidance_update" : False, 
+                           "contact_guidance_update" : False},
             affinity_mw_correction=affinity_mw_correction,
         )
         model_module.eval()
