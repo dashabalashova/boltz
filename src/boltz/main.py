@@ -5,9 +5,6 @@ import platform
 import tarfile
 import urllib.request
 import warnings
-import json
-import tempfile
-import shutil
 from dataclasses import asdict, dataclass
 from functools import partial
 from multiprocessing import Pool
@@ -16,7 +13,6 @@ from typing import Literal, Optional
 
 import click
 import torch
-import yaml
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_only
@@ -152,11 +148,10 @@ class Boltz2DiffusionParams:
 class BoltzSteeringParams:
     """Steering parameters."""
 
-    fk_steering: bool = True
+    fk_steering: bool = False
     num_particles: int = 3
     fk_lambda: float = 4.0
     fk_resampling_interval: int = 3
-    guidance_update: bool = True
     physical_guidance_update: bool = False
     contact_guidance_update: bool = True
     num_gd_steps: int = 20
@@ -283,12 +278,12 @@ def get_cache_path() -> str:
     return str(Path("~/.boltz").expanduser())
 
 
-def check_inputs(input_data: Path) -> list[Path]:
+def check_inputs(data: Path) -> list[Path]:
     """Check the input data and output directory.
 
     Parameters
     ----------
-    input_data : Path
+    data : Path
         The input data.
 
     Returns
@@ -300,25 +295,25 @@ def check_inputs(input_data: Path) -> list[Path]:
     click.echo("Checking input data.")
 
     # Check if data is a directory
-    if input_data.is_dir():
-        data_files: list[Path] = list(input_data.glob("*"))
+    if data.is_dir():
+        data: list[Path] = list(data.glob("*"))
 
         # Filter out non .fasta or .yaml files, raise
         # an error on directory and other file types
-        for d in data_files:
+        for d in data:
             if d.is_dir():
                 msg = f"Found directory {d} instead of .fasta or .yaml."
                 raise RuntimeError(msg)
-            if d.suffix not in (".fa", ".fas", ".fasta", ".yml", ".yaml"):
+            if d.suffix.lower() not in (".fa", ".fas", ".fasta", ".yml", ".yaml"):
                 msg = (
                     f"Unable to parse filetype {d.suffix}, "
                     "please provide a .fasta or .yaml file."
                 )
                 raise RuntimeError(msg)
     else:
-        data_files = [input_data]
+        data = [data]
 
-    return data_files
+    return data
 
 
 def filter_inputs_structure(
@@ -343,9 +338,12 @@ def filter_inputs_structure(
         The manifest of the filtered input data.
 
     """
-    # Check if existing predictions are found
-    existing = (outdir / "predictions").rglob("*")
-    existing = {e.name for e in existing if e.is_dir()}
+    # Check if existing predictions are found (only top-level prediction folders)
+    pred_dir = outdir / "predictions"
+    if pred_dir.exists():
+        existing = {d.name for d in pred_dir.iterdir() if d.is_dir()}
+    else:
+        existing = set()
 
     # Remove them from the input data
     if existing and not override:
@@ -398,6 +396,7 @@ def filter_inputs_affinity(
 
     # Remove them from the input data
     if existing and not override:
+        manifest = Manifest([r for r in manifest.records if r.id not in existing])
         num_skipped = len(existing)
         msg = (
             f"Found some existing affinity predictions ({num_skipped}), "
@@ -410,7 +409,7 @@ def filter_inputs_affinity(
         msg = "Found existing affinity predictions, will override."
         click.echo(msg)
 
-    return Manifest([r for r in manifest.records if r.id not in existing])
+    return manifest
 
 
 def compute_msa(
@@ -419,6 +418,10 @@ def compute_msa(
     msa_dir: Path,
     msa_server_url: str,
     msa_pairing_strategy: str,
+    msa_server_username: Optional[str] = None,
+    msa_server_password: Optional[str] = None,
+    api_key_header: Optional[str] = None,
+    api_key_value: Optional[str] = None,
 ) -> None:
     """Compute the MSA for the input data.
 
@@ -434,27 +437,60 @@ def compute_msa(
         The MSA server URL.
     msa_pairing_strategy : str
         The MSA pairing strategy.
+    msa_server_username : str, optional
+        Username for basic authentication with MSA server.
+    msa_server_password : str, optional
+        Password for basic authentication with MSA server.
+    api_key_header : str, optional
+        Custom header key for API key authentication (default: X-API-Key).
+    api_key_value : str, optional
+        Custom header value for API key authentication (overrides --api_key if set).
 
     """
+    click.echo(f"Calling MSA server for target {target_id} with {len(data)} sequences")
+    click.echo(f"MSA server URL: {msa_server_url}")
+    click.echo(f"MSA pairing strategy: {msa_pairing_strategy}")
+    
+    # Construct auth headers if API key header/value is provided
+    auth_headers = None
+    if api_key_value:
+        key = api_key_header if api_key_header else "X-API-Key"
+        value = api_key_value
+        auth_headers = {
+            "Content-Type": "application/json",
+            key: value
+        }
+        click.echo(f"Using API key authentication for MSA server (header: {key})")
+    elif msa_server_username and msa_server_password:
+        click.echo("Using basic authentication for MSA server")
+    else:
+        click.echo("No authentication provided for MSA server")
+    
     if len(data) > 1:
         paired_msas = run_mmseqs2(
             list(data.values()),
-            str(msa_dir / f"{target_id}_paired_tmp"),
+            msa_dir / f"{target_id}_paired_tmp",
             use_env=True,
             use_pairing=True,
             host_url=msa_server_url,
             pairing_strategy=msa_pairing_strategy,
+            msa_server_username=msa_server_username,
+            msa_server_password=msa_server_password,
+            auth_headers=auth_headers,
         )
     else:
         paired_msas = [""] * len(data)
 
     unpaired_msa = run_mmseqs2(
         list(data.values()),
-        str(msa_dir / f"{target_id}_unpaired_tmp"),
+        msa_dir / f"{target_id}_unpaired_tmp",
         use_env=True,
         use_pairing=False,
         host_url=msa_server_url,
         pairing_strategy=msa_pairing_strategy,
+        msa_server_username=msa_server_username,
+        msa_server_password=msa_server_password,
+        auth_headers=auth_headers,
     )
 
     for idx, name in enumerate(data):
@@ -495,6 +531,10 @@ def process_input(  # noqa: C901, PLR0912, PLR0915, D103
     use_msa_server: bool,
     msa_server_url: str,
     msa_pairing_strategy: str,
+    msa_server_username: Optional[str],
+    msa_server_password: Optional[str],
+    api_key_header: Optional[str],
+    api_key_value: Optional[str],
     max_msa_seqs: int,
     processed_msa_dir: Path,
     processed_constraints_dir: Path,
@@ -505,9 +545,9 @@ def process_input(  # noqa: C901, PLR0912, PLR0915, D103
 ) -> None:
     try:
         # Parse data
-        if path.suffix in (".fa", ".fas", ".fasta"):
+        if path.suffix.lower() in (".fa", ".fas", ".fasta"):
             target = parse_fasta(path, ccd, mol_dir, boltz2)
-        elif path.suffix in (".yml", ".yaml"):
+        elif path.suffix.lower() in (".yml", ".yaml"):
             target = parse_yaml(path, ccd, mol_dir, boltz2)
         elif path.is_dir():
             msg = f"Found directory {path} instead of .fasta or .yaml, skipping."
@@ -545,13 +585,18 @@ def process_input(  # noqa: C901, PLR0912, PLR0915, D103
         if to_generate:
             msg = f"Generating MSA for {path} with {len(to_generate)} protein entities."
             click.echo(msg)
-            compute_msa(
-                data=to_generate,
-                target_id=target_id,
-                msa_dir=msa_dir,
-                msa_server_url=msa_server_url,
-                msa_pairing_strategy=msa_pairing_strategy,
-            )
+            if target_id+"_0.csv" not in os.listdir(msa_dir):  # noqa: PTH208
+                compute_msa(
+                    data=to_generate,
+                    target_id=target_id,
+                    msa_dir=msa_dir,
+                    msa_server_url=msa_server_url,
+                    msa_pairing_strategy=msa_pairing_strategy,
+                    msa_server_username=msa_server_username,
+                    msa_server_password=msa_server_password,
+                    api_key_header=api_key_header,
+                    api_key_value=api_key_value,
+                )
 
         # Parse MSA data
         msas = sorted({c.msa_id for c in target.record.chains if c.msa_id != -1})
@@ -569,18 +614,18 @@ def process_input(  # noqa: C901, PLR0912, PLR0915, D103
             if not processed.exists():
                 # Parse A3M
                 if msa_path.suffix == ".a3m":
-                    msa_data: MSA = parse_a3m(
+                    msa: MSA = parse_a3m(
                         msa_path,
                         taxonomy=None,
                         max_seqs=max_msa_seqs,
                     )
                 elif msa_path.suffix == ".csv":
-                    msa_data: MSA = parse_csv(msa_path, max_seqs=max_msa_seqs)
+                    msa: MSA = parse_csv(msa_path, max_seqs=max_msa_seqs)
                 else:
                     msg = f"MSA file {msa_path} not supported, only a3m or csv."
                     raise RuntimeError(msg)  # noqa: TRY301
 
-                msa_data.dump(processed)
+                msa.dump(processed)
 
         # Modify records to point to processed MSA
         for c in target.record.chains:
@@ -627,6 +672,10 @@ def process_inputs(
     msa_pairing_strategy: str,
     max_msa_seqs: int = 8192,
     use_msa_server: bool = False,
+    msa_server_username: Optional[str] = None,
+    msa_server_password: Optional[str] = None,
+    api_key_header: Optional[str] = None,
+    api_key_value: Optional[str] = None,
     boltz2: bool = False,
     preprocessing_threads: int = 1,
 ) -> Manifest:
@@ -641,9 +690,17 @@ def process_inputs(
     ccd_path : Path
         The path to the CCD dictionary.
     max_msa_seqs : int, optional
-        Max number of MSA sequences, by default 4096.
+        Max number of MSA sequences, by default 8192.
     use_msa_server : bool, optional
         Whether to use the MMSeqs2 server for MSA generation, by default False.
+    msa_server_username : str, optional
+        Username for basic authentication with MSA server, by default None.
+    msa_server_password : str, optional
+        Password for basic authentication with MSA server, by default None.
+    api_key_header : str, optional
+        Custom header key for API key authentication (default: X-API-Key).
+    api_key_value : str, optional
+        Custom header value for API key authentication (overrides --api_key if set).
     boltz2: bool, optional
         Whether to use Boltz2, by default False.
     preprocessing_threads: int, optional
@@ -655,6 +712,16 @@ def process_inputs(
         The manifest of the processed input data.
 
     """
+    # Validate mutually exclusive authentication methods
+    has_basic_auth = msa_server_username and msa_server_password
+    has_api_key = api_key_value is not None
+    
+    if has_basic_auth and has_api_key:
+        raise ValueError(
+            "Cannot use both basic authentication (--msa_server_username/--msa_server_password) "
+            "and API key authentication (--api_key_header/--api_key_value). Please use only one authentication method."
+        )
+
     # Check if records exist at output path
     records_dir = out_dir / "processed" / "records"
     if records_dir.exists():
@@ -674,7 +741,6 @@ def process_inputs(
             click.echo("All inputs are already processed.")
             updated_manifest = Manifest(existing)
             updated_manifest.dump(out_dir / "processed" / "manifest.json")
-            return updated_manifest
 
     # Create output directories
     msa_dir = out_dir / "msa"
@@ -698,7 +764,7 @@ def process_inputs(
 
     # Load CCD
     if boltz2:
-        ccd = load_canonicals(str(mol_dir))
+        ccd = load_canonicals(mol_dir)
     else:
         with ccd_path.open("rb") as file:
             ccd = pickle.load(file)  # noqa: S301
@@ -713,6 +779,10 @@ def process_inputs(
         use_msa_server=use_msa_server,
         msa_server_url=msa_server_url,
         msa_pairing_strategy=msa_pairing_strategy,
+        msa_server_username=msa_server_username,
+        msa_server_password=msa_server_password,
+        api_key_header=api_key_header,
+        api_key_value=api_key_value,
         max_msa_seqs=max_msa_seqs,
         processed_msa_dir=processed_msa_dir,
         processed_constraints_dir=processed_constraints_dir,
@@ -737,7 +807,6 @@ def process_inputs(
     records = [Record.load(p) for p in records_dir.glob("*.json")]
     manifest = Manifest(records)
     manifest.dump(out_dir / "processed" / "manifest.json")
-    return manifest
 
 
 @click.group()
@@ -874,9 +943,33 @@ def cli() -> None:
     default="greedy",
 )
 @click.option(
+    "--msa_server_username",
+    type=str,
+    help="MSA server username for basic auth. Used only if --use_msa_server is set. Can also be set via BOLTZ_MSA_USERNAME environment variable.",
+    default=None,
+)
+@click.option(
+    "--msa_server_password",
+    type=str,
+    help="MSA server password for basic auth. Used only if --use_msa_server is set. Can also be set via BOLTZ_MSA_PASSWORD environment variable.",
+    default=None,
+)
+@click.option(
+    "--api_key_header",
+    type=str,
+    help="Custom header key for API key authentication (default: X-API-Key).",
+    default=None,
+)
+@click.option(
+    "--api_key_value",
+    type=str,
+    help="Custom header value for API key authentication.",
+    default=None,
+)
+@click.option(
     "--use_potentials",
     is_flag=True,
-    help="Whether to not use potentials for steering. Default is False.",
+    help="Whether to use potentials for steering. Default is False.",
 )
 @click.option(
     "--model",
@@ -943,10 +1036,9 @@ def cli() -> None:
     help="Whether to disable the kernels. Default False",
 )
 @click.option(
-    "--batch_size",
-    type=int,
-    help="Batch size. Default: 1.",
-    default=1
+    "--write_embeddings",
+    is_flag=True,
+    help=" to dump the s and z embeddings into a npz file. Default is False.",
 )
 def predict(  # noqa: C901, PLR0915, PLR0912
     data: str,
@@ -972,6 +1064,10 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     use_msa_server: bool = False,
     msa_server_url: str = "https://api.colabfold.com",
     msa_pairing_strategy: str = "greedy",
+    msa_server_username: Optional[str] = None,
+    msa_server_password: Optional[str] = None,
+    api_key_header: Optional[str] = None,
+    api_key_value: Optional[str] = None,
     use_potentials: bool = False,
     model: Literal["boltz1", "boltz2"] = "boltz2",
     method: Optional[str] = None,
@@ -981,7 +1077,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     subsample_msa: bool = True,
     num_subsampled_msa: int = 1024,
     no_kernels: bool = False,
-    batch_size: int = 1
+    write_embeddings: bool = False,
 ) -> None:
     """Run predictions with Boltz."""
     # If cpu, write a friendly warning
@@ -1013,26 +1109,43 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         os.environ[key] = os.environ.get(key, "1")
 
     # Set cache path
-    cache_path = Path(cache).expanduser()
-    cache_path.mkdir(parents=True, exist_ok=True)
+    cache = Path(cache).expanduser()
+    cache.mkdir(parents=True, exist_ok=True)
+
+    # Get MSA server credentials from environment variables if not provided
+    if use_msa_server:
+        if msa_server_username is None:
+            msa_server_username = os.environ.get("BOLTZ_MSA_USERNAME")
+        if msa_server_password is None:
+            msa_server_password = os.environ.get("BOLTZ_MSA_PASSWORD")
+        if api_key_value is None:
+            api_key_value = os.environ.get("MSA_API_KEY_VALUE")
+        
+        click.echo(f"MSA server enabled: {msa_server_url}")
+        if api_key_value:
+            click.echo("MSA server authentication: using API key header")
+        elif msa_server_username and msa_server_password:
+            click.echo("MSA server authentication: using basic auth")
+        else:
+            click.echo("MSA server authentication: no credentials provided")
 
     # Create output directories
-    data_path = Path(data).expanduser()
-    out_dir_path = Path(out_dir).expanduser()
-    out_dir_path = out_dir_path / f"boltz_results_{data_path.stem}"
-    out_dir_path.mkdir(parents=True, exist_ok=True)
+    data = Path(data).expanduser()
+    out_dir = Path(out_dir).expanduser()
+    out_dir = out_dir / f"boltz_results_{data.stem}"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # Download necessary data and model
     if model == "boltz1":
-        download_boltz1(cache_path)
+        download_boltz1(cache)
     elif model == "boltz2":
-        download_boltz2(cache_path)
+        download_boltz2(cache)
     else:
         msg = f"Model {model} not supported. Supported: boltz1, boltz2."
         raise ValueError(f"Model {model} not supported.")
 
     # Validate inputs
-    data_files = check_inputs(data_path)
+    data = check_inputs(data)
 
     # Check method
     if method is not None:
@@ -1045,33 +1158,37 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             raise ValueError(msg)
 
     # Process inputs
-    ccd_path = cache_path / "ccd.pkl"
-    mol_dir = cache_path / "mols"
+    ccd_path = cache / "ccd.pkl"
+    mol_dir = cache / "mols"
     process_inputs(
-        data=data_files,
-        out_dir=out_dir_path,
+        data=data,
+        out_dir=out_dir,
         ccd_path=ccd_path,
         mol_dir=mol_dir,
         use_msa_server=use_msa_server,
         msa_server_url=msa_server_url,
         msa_pairing_strategy=msa_pairing_strategy,
+        msa_server_username=msa_server_username,
+        msa_server_password=msa_server_password,
+        api_key_header=api_key_header,
+        api_key_value=api_key_value,
         boltz2=model == "boltz2",
         preprocessing_threads=preprocessing_threads,
         max_msa_seqs=max_msa_seqs,
     )
 
     # Load manifest
-    manifest = Manifest.load(out_dir_path / "processed" / "manifest.json")
+    manifest = Manifest.load(out_dir / "processed" / "manifest.json")
 
     # Filter out existing predictions
     filtered_manifest = filter_inputs_structure(
         manifest=manifest,
-        outdir=out_dir_path,
+        outdir=out_dir,
         override=override,
     )
 
     # Load processed data
-    processed_dir = out_dir_path / "processed"
+    processed_dir = out_dir / "processed"
     processed = BoltzProcessedInput(
         manifest=filtered_manifest,
         targets_dir=processed_dir / "structures",
@@ -1096,7 +1213,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     if (isinstance(devices, int) and devices > 1) or (
         isinstance(devices, list) and len(devices) > 1
     ):
-        start_method = "fork" if platform.system() != "win32" else "spawn"
+        start_method = "fork" if platform.system() != "win32" and platform.system() != "Windows" else "spawn"
         strategy = DDPStrategy(start_method=start_method)
         if len(filtered_manifest.records) < devices:
             msg = (
@@ -1129,15 +1246,16 @@ def predict(  # noqa: C901, PLR0915, PLR0912
 
     # Create prediction writer
     pred_writer = BoltzWriter(
-        data_dir=str(processed.targets_dir),
-        output_dir=str(out_dir_path / "predictions"),
-        output_format="mmcif",
+        data_dir=processed.targets_dir,
+        output_dir=out_dir / "predictions",
+        output_format=output_format,
         boltz2=model == "boltz2",
+        write_embeddings=write_embeddings,
     )
 
     # Set up trainer
     trainer = Trainer(
-        default_root_dir=out_dir_path,
+        default_root_dir=out_dir,
         strategy=strategy,
         callbacks=[pred_writer],
         accelerator=accelerator,
@@ -1162,7 +1280,6 @@ def predict(  # noqa: C901, PLR0915, PLR0912
                 template_dir=processed.template_dir,
                 extra_mols_dir=processed.extra_mols_dir,
                 override_method=method,
-                batch_size=batch_size
             )
         else:
             data_module = BoltzInferenceDataModule(
@@ -1171,15 +1288,14 @@ def predict(  # noqa: C901, PLR0915, PLR0912
                 msa_dir=processed.msa_dir,
                 num_workers=num_workers,
                 constraints_dir=processed.constraints_dir,
-                batch_size=batch_size
             )
 
         # Load model
         if checkpoint is None:
             if model == "boltz2":
-                checkpoint = cache_path / "boltz2_conf.ckpt"
+                checkpoint = cache / "boltz2_conf.ckpt"
             else:
-                checkpoint = cache_path / "boltz1_conf.ckpt"
+                checkpoint = cache / "boltz1_conf.ckpt"
 
         predict_args = {
             "recycling_steps": recycling_steps,
@@ -1193,11 +1309,11 @@ def predict(  # noqa: C901, PLR0915, PLR0912
 
         steering_args = BoltzSteeringParams()
         steering_args.fk_steering = use_potentials
-        steering_args.guidance_update = use_potentials
+        steering_args.physical_guidance_update = use_potentials
 
         model_cls = Boltz2 if model == "boltz2" else Boltz1
         model_module = model_cls.load_from_checkpoint(
-            str(checkpoint),
+            checkpoint,
             strict=True,
             predict_args=predict_args,
             map_location="cpu",
@@ -1225,7 +1341,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         # Validate inputs
         manifest_filtered = filter_inputs_affinity(
             manifest=manifest,
-            outdir=out_dir_path,
+            outdir=out_dir,
             override=override,
         )
         if not manifest_filtered.records:
@@ -1237,13 +1353,13 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         click.echo(msg)
 
         pred_writer = BoltzAffinityWriter(
-            data_dir=str(processed.targets_dir),
-            output_dir=str(out_dir_path / "predictions"),
+            data_dir=processed.targets_dir,
+            output_dir=out_dir / "predictions",
         )
 
         data_module = Boltz2InferenceDataModule(
             manifest=manifest_filtered,
-            target_dir=out_dir_path / "predictions",
+            target_dir=out_dir / "predictions",
             msa_dir=processed.msa_dir,
             mol_dir=mol_dir,
             num_workers=num_workers,
@@ -1252,7 +1368,6 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             extra_mols_dir=processed.extra_mols_dir,
             override_method="other",
             affinity=True,
-            batch_size=batch_size
         )
 
         predict_affinity_args = {
@@ -1267,10 +1382,15 @@ def predict(  # noqa: C901, PLR0915, PLR0912
 
         # Load affinity model
         if affinity_checkpoint is None:
-            affinity_checkpoint = cache_path / "boltz2_aff.ckpt"
+            affinity_checkpoint = cache / "boltz2_aff.ckpt"
 
+        steering_args = BoltzSteeringParams()
+        steering_args.fk_steering = False
+        steering_args.physical_guidance_update = False
+        steering_args.contact_guidance_update = False
+        
         model_module = Boltz2.load_from_checkpoint(
-            str(affinity_checkpoint),
+            affinity_checkpoint,
             strict=True,
             predict_args=predict_affinity_args,
             map_location="cpu",
@@ -1278,7 +1398,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             ema=False,
             pairformer_args=asdict(pairformer_args),
             msa_args=asdict(msa_args),
-            steering_args={"fk_steering": False, "guidance_update": False},
+            steering_args=asdict(steering_args),
             affinity_mw_correction=affinity_mw_correction,
         )
         model_module.eval()
@@ -1289,513 +1409,6 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             datamodule=data_module,
             return_predictions=False,
         )
-
-
-@cli.command()
-@click.argument("data", type=click.Path(exists=True))
-@click.option(
-    "--out_dir",
-    type=click.Path(exists=False),
-    help="The path where to save the predictions.",
-    default="./",
-)
-@click.option(
-    "--cache",
-    type=click.Path(exists=False),
-    help=(
-        "The directory where to download the data and model. "
-        "Default is ~/.boltz, or $BOLTZ_CACHE if set."
-    ),
-    default=get_cache_path,
-)
-@click.option(
-    "--devices",
-    type=int,
-    help="The number of devices to use for prediction. Default is 1.",
-    default=1,
-)
-@click.option(
-    "--accelerator",
-    type=click.Choice(["gpu", "cpu", "tpu"]),
-    help="The accelerator to use for prediction. Default is gpu.",
-    default="gpu",
-)
-@click.option(
-    "--recycling_steps",
-    type=int,
-    help="The number of recycling steps to use for prediction. Default is 3.",
-    default=3,
-)
-@click.option(
-    "--sampling_steps",
-    type=int,
-    help="The number of sampling steps to use for prediction. Default is 200.",
-    default=200,
-)
-@click.option(
-    "--diffusion_samples",
-    type=int,
-    help="The number of diffusion samples to use for prediction. Default is 1.",
-    default=1,
-)
-@click.option(
-    "--sampling_steps_affinity",
-    type=int,
-    help="The number of sampling steps to use for affinity prediction. Default is 200.",
-    default=200,
-)
-@click.option(
-    "--diffusion_samples_affinity",
-    type=int,
-    help="The number of diffusion samples to use for affinity prediction. Default is 5.",
-    default=5,
-)
-@click.option(
-    "--num_workers",
-    type=int,
-    help="The number of dataloader workers to use for prediction. Default is 2.",
-    default=2,
-)
-@click.option(
-    "--seed",
-    type=int,
-    help="Seed to use for random number generator. Default is None (no seeding).",
-    default=None,
-)
-@click.option(
-    "--use_msa_server",
-    is_flag=True,
-    help="Whether to use the MMSeqs2 server for MSA generation. Default is False.",
-)
-@click.option(
-    "--msa_server_url",
-    type=str,
-    help="MSA server url. Used only if --use_msa_server is set. ",
-    default="https://api.colabfold.com",
-)
-@click.option(
-    "--msa_pairing_strategy",
-    type=str,
-    help=(
-        "Pairing strategy to use. Used only if --use_msa_server is set. "
-        "Options are 'greedy' and 'complete'"
-    ),
-    default="greedy",
-)
-@click.option(
-    "--affinity_mw_correction",
-    is_flag=True,
-    type=bool,
-    help="Whether to add the Molecular Weight correction to the affinity value head.",
-)
-@click.option(
-    "--affinity_checkpoint",
-    type=click.Path(exists=True),
-    help="An optional checkpoint, will use the provided Boltz-2 model by default.",
-    default=None,
-)
-@click.option(
-    "--max_msa_seqs",
-    type=int,
-    help="The maximum number of MSA sequences to use for prediction. Default is 8192.",
-    default=8192,
-)
-@click.option(
-    "--subsample_msa",
-    is_flag=True,
-    help="Whether to subsample the MSA. Default is True.",
-)
-@click.option(
-    "--num_subsampled_msa",
-    type=int,
-    help="The number of MSA sequences to subsample. Default is 1024.",
-    default=1024,
-)
-@click.option(
-    "--no_kernels",
-    is_flag=True,
-    help="Whether to disable the kernels. Default False",
-)
-@click.option(
-    "--batch_size",
-    type=int,
-    help="Batch size. Default: 1.",
-    default=1
-)
-def screen(
-    data: str,
-    out_dir: str,
-    cache: str = "~/.boltz",
-    devices: int = 1,
-    accelerator: str = "gpu",
-    recycling_steps: int = 3,
-    sampling_steps: int = 200,
-    diffusion_samples: int = 1,
-    sampling_steps_affinity: int = 200,
-    diffusion_samples_affinity: int = 5,
-    num_workers: int = 2,
-    seed: Optional[int] = None,
-    use_msa_server: bool = False,
-    msa_server_url: str = "https://api.colabfold.com",
-    msa_pairing_strategy: str = "greedy",
-    affinity_mw_correction: Optional[bool] = False,
-    affinity_checkpoint: Optional[str] = None,
-    max_msa_seqs: int = 8192,
-    subsample_msa: bool = True,
-    num_subsampled_msa: int = 1024,
-    no_kernels: bool = False,
-    batch_size: int = 1
-) -> None:
-    """Run virtual screening with Boltz-2.
-    
-    Takes a YAML file with a protein and multiple ligands, creates individual YAML files
-    for each ligand, runs boltz prediction, and extracts the affinity_probability_binary values.
-    
-    Expected YAML format:
-    version: 1
-    protein:
-      sequence: MVTPEGNVSLVDESLLVGVTDEDRAVRSAHQFYERLIGLWAPAVMEAAHELGVFAALAEAPADSGELARRLDCDARAMRVLLDALYAYDVIDRIHDTNGFRYLLSAEARECLLPGTLFSLVGKFMHDINVAWPAWRNLAEVVRHGARDTSGAESPNGIAQEDYESLVGGINFWAPPIVTTLSRKLRASGRSGDATASVLDVGCGTGLYSQLLLREFPRWTATGLDVERIATLANAQALRLGVEERFATRAGDFWRGGWGTGYDLVLFANIFHLQTPASAVRLMRHAAACLAPDGLVAVVDQIVDADREPKTPQDRFALLFAASMTNTGGGDAYTFQEYEEWFTAAGLQRIETLDTPMHRILLARRATEPSAVPEGQASENLYFQ
-    ligands:
-      - lig1:
-          smiles: 'CN1N=CC(=C1C(=O)O)S(=O)(=O)NC(C=2C=CC=C(Cl)C2)C=3C=CC=C(Cl)C3'
-      - lig2:
-          smiles: 'COC=1C=CC(CNS(=O)(=O)C=2C=NN(C)C2C(=O)O)=CC1OCC#C'
-    """
-    # If cpu, write a friendly warning
-    if accelerator == "cpu":
-        msg = "Running on CPU, this will be slow. Consider using a GPU."
-        click.echo(msg)
-
-    # Supress some lightning warnings
-    warnings.filterwarnings(
-        "ignore", ".*that has Tensor Cores. To properly utilize them.*"
-    )
-
-    # Set no grad
-    torch.set_grad_enabled(False)
-
-    # Ignore matmul precision warning
-    torch.set_float32_matmul_precision("highest")
-
-    # Set rdkit pickle logic
-    Chem.SetDefaultPickleProperties(Chem.PropertyPickleOptions.AllProps)
-
-    # Set seed if desired
-    if seed is not None:
-        seed_everything(seed)
-
-    for key in ["CUEQ_DEFAULT_CONFIG", "CUEQ_DISABLE_AOT_TUNING"]:
-        # Disable kernel tuning by default,
-        # but do not modify envvar if already set by caller
-        os.environ[key] = os.environ.get(key, "1")
-
-    # Set cache path
-    cache_path = Path(cache).expanduser()
-    cache_path.mkdir(parents=True, exist_ok=True)
-
-    # Create output directories
-    data_path = Path(data).expanduser()
-    out_dir_path = Path(out_dir).expanduser()
-    out_dir_path = out_dir_path / f"boltz_results_{data_path.stem}"
-    out_dir_path.mkdir(parents=True, exist_ok=True)
-
-    # Download necessary data and model (Boltz-2 only for virtual screening)
-    download_boltz2(cache_path)
-
-    # Load and parse the virtual screening YAML
-    with data_path.open("r") as f:
-        screen_data = yaml.safe_load(f)
-
-    # Validate the YAML structure
-    if "version" not in screen_data or screen_data["version"] != 1:
-        raise ValueError("YAML must have version: 1")
-    
-    if "protein" not in screen_data or "sequence" not in screen_data["protein"]:
-        raise ValueError("YAML must contain protein.sequence")
-    
-    if "ligands" not in screen_data or not screen_data["ligands"]:
-        raise ValueError("YAML must contain non-empty ligands list")
-
-    protein_sequence = screen_data["protein"]["sequence"]
-    ligands = screen_data["ligands"]
-
-    # Create temporary directory for individual YAML files
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        
-        # Create individual YAML files for each ligand
-        yaml_files = []
-        for i, ligand_entry in enumerate(ligands):
-            # Extract ligand name and SMILES
-            ligand_name = list(ligand_entry.keys())[0]
-            ligand_smiles = ligand_entry[ligand_name]["smiles"]
-            
-            # Create individual YAML
-            individual_yaml = {
-                "version": 1,
-                "sequences": [
-                    {
-                        "protein": {
-                            "id": "prot",
-                            "sequence": protein_sequence
-                        }
-                    },
-                    {
-                        "ligand": {
-                            "id": ligand_name,
-                            "smiles": ligand_smiles
-                        }
-                    }
-                ],
-                "properties": [
-                    {
-                        "affinity": {
-                            "binder": ligand_name
-                        }
-                    }
-                ]
-            }
-            
-            # Write individual YAML file
-            yaml_file = temp_path / f"{ligand_name}.yaml"
-            with yaml_file.open("w") as f:
-                yaml.dump(individual_yaml, f)
-            
-            yaml_files.append(yaml_file)
-
-        click.echo(f"Created {len(yaml_files)} individual YAML files for virtual screening")
-
-        # Run boltz prediction on the temporary directory
-        # We'll reuse the existing predict function logic but call it programmatically
-        # First, validate inputs
-        data_files = check_inputs(temp_path)
-
-        # Process inputs
-        ccd_path = cache_path / "ccd.pkl"
-        mol_dir = cache_path / "mols"
-        process_inputs(
-            data=data_files,
-            out_dir=out_dir_path,
-            ccd_path=ccd_path,
-            mol_dir=mol_dir,
-            use_msa_server=use_msa_server,
-            msa_server_url=msa_server_url,
-            msa_pairing_strategy=msa_pairing_strategy,
-            boltz2=True,
-            preprocessing_threads=1,
-            max_msa_seqs=max_msa_seqs,
-        )
-
-        # Load manifest
-        manifest = Manifest.load(out_dir_path / "processed" / "manifest.json")
-
-        # Load processed data
-        processed_dir = out_dir_path / "processed"
-        processed = BoltzProcessedInput(
-            manifest=manifest,
-            targets_dir=processed_dir / "structures",
-            msa_dir=processed_dir / "msa",
-            constraints_dir=(
-                (processed_dir / "constraints")
-                if (processed_dir / "constraints").exists()
-                else None
-            ),
-            template_dir=(
-                (processed_dir / "templates")
-                if (processed_dir / "templates").exists()
-                else None
-            ),
-            extra_mols_dir=(
-                (processed_dir / "mols") if (processed_dir / "mols").exists() else None
-            ),
-        )
-
-        # Set up trainer
-        strategy = "auto"
-        if devices > 1:
-            start_method = "fork" if platform.system() != "win32" else "spawn"
-            strategy = DDPStrategy(start_method=start_method)
-            if len(manifest.records) < devices:
-                msg = (
-                    "Number of requested devices is greater "
-                    "than the number of predictions, taking the minimum."
-                )
-                click.echo(msg)
-                devices = max(1, min(len(manifest.records), devices))
-
-        # Set up model parameters for Boltz-2
-        diffusion_params = Boltz2DiffusionParams()
-        pairformer_args = PairformerArgsV2()
-        msa_args = MSAModuleArgs(
-            subsample_msa=subsample_msa,
-            num_subsampled_msa=num_subsampled_msa,
-            use_paired_feature=True,
-        )
-
-        # Create prediction writer
-        pred_writer = BoltzWriter(
-            data_dir=str(processed.targets_dir),
-            output_dir=str(out_dir_path / "predictions"),
-            output_format="mmcif",
-            boltz2=True,
-        )
-
-        # Set up trainer
-        trainer = Trainer(
-            default_root_dir=out_dir_path,
-            strategy=strategy,
-            callbacks=[pred_writer],
-            accelerator=accelerator,
-            devices=devices,
-            precision="bf16-mixed",
-        )
-
-        if manifest.records:
-            msg = f"Running structure prediction for {len(manifest.records)} ligands."
-            click.echo(msg)
-
-            # Create data module
-            data_module = Boltz2InferenceDataModule(
-                manifest=manifest,
-                target_dir=processed.targets_dir,
-                msa_dir=processed.msa_dir,
-                mol_dir=mol_dir,
-                num_workers=num_workers,
-                constraints_dir=processed.constraints_dir,
-                template_dir=processed.template_dir,
-                extra_mols_dir=processed.extra_mols_dir,
-                override_method=None,
-                batch_size=batch_size
-            )
-
-            # Load model
-            checkpoint = cache_path / "boltz2_conf.ckpt"
-
-            predict_args = {
-                "recycling_steps": recycling_steps,
-                "sampling_steps": sampling_steps,
-                "diffusion_samples": diffusion_samples,
-                "max_parallel_samples": None,
-                "write_confidence_summary": True,
-                "write_full_pae": False,
-                "write_full_pde": False,
-            }
-
-            steering_args = BoltzSteeringParams()
-            steering_args.fk_steering = False
-            steering_args.guidance_update = False
-
-            model_module = Boltz2.load_from_checkpoint(
-                str(checkpoint),
-                strict=True,
-                predict_args=predict_args,
-                map_location="cpu",
-                diffusion_process_args=asdict(diffusion_params),
-                ema=False,
-                use_kernels=not no_kernels,
-                pairformer_args=asdict(pairformer_args),
-                msa_args=asdict(msa_args),
-                steering_args=asdict(steering_args),
-            )
-            model_module.eval()
-
-            # Compute structure predictions
-            trainer.predict(
-                model_module,
-                datamodule=data_module,
-                return_predictions=False,
-            )
-
-        # Run affinity predictions
-        click.echo("\nPredicting property: affinity\n")
-
-        pred_writer = BoltzAffinityWriter(
-            data_dir=str(processed.targets_dir),
-            output_dir=str(out_dir_path / "predictions"),
-        )
-
-        data_module = Boltz2InferenceDataModule(
-            manifest=manifest,
-            target_dir=out_dir_path / "predictions",
-            msa_dir=processed.msa_dir,
-            mol_dir=mol_dir,
-            num_workers=num_workers,
-            constraints_dir=processed.constraints_dir,
-            template_dir=processed.template_dir,
-            extra_mols_dir=processed.extra_mols_dir,
-            override_method="other",
-            affinity=True,
-            batch_size=batch_size
-        )
-
-        predict_affinity_args = {
-            "recycling_steps": 5,
-            "sampling_steps": sampling_steps_affinity,
-            "diffusion_samples": diffusion_samples_affinity,
-            "max_parallel_samples": 1,
-            "write_confidence_summary": False,
-            "write_full_pae": False,
-            "write_full_pde": False,
-        }
-
-        # Load affinity model
-        if affinity_checkpoint is None:
-            affinity_checkpoint = cache_path / "boltz2_aff.ckpt"
-
-        model_module = Boltz2.load_from_checkpoint(
-            str(affinity_checkpoint),
-            strict=True,
-            predict_args=predict_affinity_args,
-            map_location="cpu",
-            diffusion_process_args=asdict(diffusion_params),
-            ema=False,
-            pairformer_args=asdict(pairformer_args),
-            msa_args=asdict(msa_args),
-            steering_args={"fk_steering": False, "guidance_update": False, 
-                           "physical_guidance_update" : False, 
-                           "contact_guidance_update" : False},
-            affinity_mw_correction=affinity_mw_correction,
-        )
-        model_module.eval()
-
-        trainer.callbacks[0] = pred_writer
-        trainer.predict(
-            model_module,
-            datamodule=data_module,
-            return_predictions=False,
-        )
-
-    # Extract and print results
-    click.echo("\nVirtual screening results:")
-    results = []
-    
-    for ligand_entry in ligands:
-        ligand_name = list(ligand_entry.keys())[0]
-        affinity_file = out_dir_path / "predictions" / ligand_name / f"affinity_{ligand_name}.json"
-        
-        if affinity_file.exists():
-            with affinity_file.open("r") as f:
-                affinity_data = json.load(f)
-                affinity_prob = affinity_data.get("affinity_probability_binary", 0.0)
-                results.append({
-                    "name": ligand_name,
-                    "affinity_probability_binary": affinity_prob
-                })
-                print(json.dumps({
-                    "name": ligand_name,
-                    "affinity_probability_binary": affinity_prob
-                }))
-        else:
-            results.append({
-                "name": ligand_name,
-                "affinity_probability_binary": None
-            })
-            print(json.dumps({
-                "name": ligand_name,
-                "affinity_probability_binary": None
-            }))
-
-    click.echo(f"\nVirtual screening completed. Results saved in {out_dir_path}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,16 @@
+# subsample n=16 seed=0
+python3 projects/cache2/subsample.py -n 16 -s 0 -o data/cache2/processed/smiles_n16_s0.tsv
+
+# preprocess n=16 seed=0
+python3 scripts/screen/s0_preprocess.py -f data/cache2/raw/YP_009725308.1.fasta -s data/cache2/processed/smiles_n16_s0.tsv -o data/cache2/processed/yamls/n16_s0
+python3 scripts/screen/s1_input_screen.py -y data/cache2/processed/yamls/n16_s0 -o results/cache2_n16_s0
+
+# batch = 1 version = 0
+cp -r results/cache2_n16_s0 results/cache2_n16_s0_b1_v0
+python3 scripts/predict/s2_structure.py -b 1 --out_dir results/cache2_n16_s0_b1_v0
+python3 scripts/predict/s3_affinity.py -b 1 --out_dir results/cache2_n16_s0_b1_v0
+
+# batch = 16 version = 0
+cp -r results/cache2_n16_s0 results/cache2_n16_s0_b16_v0
+python3 scripts/predict/s2_structure.py -b 16 --out_dir results/cache2_n16_s0_b16_v0
+python3 scripts/predict/s3_affinity.py -b 16 --out_dir results/cache2_n16_s0_b16_v0
