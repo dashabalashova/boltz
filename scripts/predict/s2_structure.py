@@ -80,7 +80,7 @@ def main() -> None:  # noqa: D103
     )
     model.eval()
 
-    writer = BoltzWriter(
+    writer = BoltzWriter_screen(
         data_dir=processed_dir / "structures",
         output_dir=out_dir / "predictions",
         output_format="mmcif",

@@ -85,7 +85,7 @@ def main() -> None:  # noqa: D103
     )
     model.eval()
 
-    affinity_writer = BoltzAffinityWriter(
+    affinity_writer = BoltzAffinityWriter_screen(
         data_dir=processed_dir / "structures",
         output_dir=out_dir / "predictions",
     )
