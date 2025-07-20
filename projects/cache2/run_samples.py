@@ -25,7 +25,7 @@ def main() -> None:  # noqa: D103
         help="Number of different random seeds"
     )
     parser.add_argument(
-        "--num-variants", "-V", type=int, default=2,
+        "--num-repeats", "-R", type=int, default=2,
         help="Number of repeats per seed"
     )
     parser.add_argument(
@@ -109,10 +109,10 @@ def main() -> None:  # noqa: D103
             "-o", str(screen_out),
         ])
 
-        # 4) for each variant and batch size: copy and run structure+affinity
-        for variant in range(args.num_variants):
+        # 4) for each repeat and batch size: copy and run structure+affinity
+        for repeat in range(args.num_repeats):
             for b in args.batch_sizes:
-                name = f"cache2_n{args.n_samples}_s{seed}_b{b}_v{variant}"
+                name = f"cache2_n{args.n_samples}_s{seed}_b{b}_r{repeat}"
                 target = args.results_dir / name
 
                 # copy base screen results into new dir
