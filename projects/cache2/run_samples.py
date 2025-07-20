@@ -1,18 +1,18 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  # noqa: EXE001
 
 import argparse
+import shutil
 import subprocess
 import sys
-import shutil
 from pathlib import Path
 
 
-def run(cmd: list[str]) -> None:
-    print("+", " ".join(cmd))
-    subprocess.run(cmd, check=True)
+def run(cmd: list[str]) -> None:  # noqa: D103
+    print("+", " ".join(cmd))  # noqa: T201
+    subprocess.run(cmd, check=True)  # noqa: S603
 
 
-def main():
+def main() -> None:  # noqa: D103
     parser = argparse.ArgumentParser(
         description="Pipeline: subsample, preprocess, screen, structure & affinity runs"
     )
