@@ -107,7 +107,7 @@ def main() -> None:  # noqa: D103
         batch_size=args.b_size,
     )
 
-    print(
+    print(  # noqa: T201
         f"Running strucuture predict with batch_size={args.b_size}, "
         f"diffusion_samples={args.diffusion_samples}, "
         f"max_parallel_samples={args.max_parallel_samples}"
@@ -122,22 +122,22 @@ def main() -> None:  # noqa: D103
 
     hrs, rem = divmod(predict_end - predict_start, 3600)
     mins, secs = divmod(rem, 60)
-    print(f"Prediction time: {int(hrs)}h {int(mins)}m {secs:.2f}s")
+    print(f"Prediction time: {int(hrs)}h {int(mins)}m {secs:.2f}s")  # noqa: T201
     total_time = time.time() - start_time
     hrs, rem = divmod(total_time, 3600)
     mins, secs = divmod(rem, 60)
-    print(f"Total execution time: {int(hrs)}h {int(mins)}m {secs:.2f}s")
+    print(f"Total execution time: {int(hrs)}h {int(mins)}m {secs:.2f}s")  # noqa: T201
 
     log_path = out_dir / "run_times.csv"
     header = not log_path.exists()
-    with open(log_path, "a") as log:
+    with open(log_path, "a") as log:  # noqa: PTH123
         if header:
             log.write(
                 "script,b_size,diffusion_samples,max_parallel_samples,predict_time_s,total_time_s\n"
             )
         log.write(
             f"s2_structure,{args.b_size},{args.diffusion_samples},"
-            f"{args.max_parallel_samples},{predict_end - predict_start:.2f},{total_time:.2f}\n"
+            f"{args.max_parallel_samples},{predict_end - predict_start:.2f},{total_time:.2f}\n"  # noqa: E501
         )
 
 
