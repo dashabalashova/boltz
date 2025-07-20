@@ -31,7 +31,7 @@ def parse_args():  # noqa: ANN201, D103
         help="Number of diffusion samples"
     )
     parser.add_argument(
-        "--max_parallel_samples", type=int, default=5,
+        "--max_parallel_samples", type=int, default=1,
         help="Max parallel diffusion samples"
     )
     parser.add_argument(
