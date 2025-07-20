@@ -1,1 +1,2 @@
-python3 projects/cache2/run_n64.py
+python3 projects/cache2/run_samples.py --n-samples 4 --num-seeds 1 --num-variants 1 --batch-sizes 1 2
+python3 projects/cache2/run_samples.py --n-samples 64 --num-seeds 2 --num-variants 4 --batch-sizes 1 2 4 8
