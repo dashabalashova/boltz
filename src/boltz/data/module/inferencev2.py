@@ -391,7 +391,6 @@ class Boltz2InferenceDataModule(pl.LightningDataModule):
         sampler = SequentialSampler(dataset)
         return DataLoader(
             dataset,
-            sampler=sampler,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,

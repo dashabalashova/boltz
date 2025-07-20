@@ -619,13 +619,14 @@ class Boltz2(LightningModule):
                     + lig_mask[:, None] * lig_mask[None, :]
                 )
                 z_affinity = z * cross_pair_mask[None, :, :, None]
-
+    
                 argsort = torch.argsort(dict_out["iptm"], descending=True)
                 best_idx = argsort[0].item()
                 coords_affinity = dict_out["sample_atom_coords"].detach()[best_idx][
                     None, None
                 ]
             else:
+                #####
                 z_lst = []
                 for n in range(batch_size):
                     pad_token_mask = feats["token_pad_mask"][n]
@@ -647,7 +648,8 @@ class Boltz2(LightningModule):
                 multiplicity = dict_out["sample_atom_coords"].shape[0] // batch_size
                 best_idx_global = best_idx + torch.arange(batch_size, device=best_idx.device) * multiplicity
                 coords_affinity = dict_out["sample_atom_coords"].detach()[best_idx_global]
-            
+                #####
+
             s_inputs = self.input_embedder(feats, affinity=True)
 
             with torch.autocast("cuda", enabled=False):

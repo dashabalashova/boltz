@@ -1,5 +1,4 @@
 import torch
-from cuequivariance_torch.primitives.triangle import triangle_multiplicative_update
 from torch import Tensor, nn
 
 from boltz.model.layers import initialize as init
@@ -20,6 +19,7 @@ def kernel_triangular_mult(
     g_out_weight,
     eps,
 ):
+    from cuequivariance_torch.primitives.triangle import triangle_multiplicative_update
     return triangle_multiplicative_update(
         x,
         direction=direction,
@@ -58,17 +58,17 @@ class TriangleMultiplicationOutgoing(nn.Module):
         self.p_out = nn.Linear(dim, dim, bias=False)
         self.g_out = nn.Linear(dim, dim, bias=False)
 
-        # init.bias_init_one_(self.norm_in.weight)
-        # init.bias_init_zero_(self.norm_in.bias)
+        init.bias_init_one_(self.norm_in.weight)
+        init.bias_init_zero_(self.norm_in.bias)
 
-        # init.lecun_normal_init_(self.p_in.weight)
-        # init.gating_init_(self.g_in.weight)
+        init.lecun_normal_init_(self.p_in.weight)
+        init.gating_init_(self.g_in.weight)
 
-        # init.bias_init_one_(self.norm_out.weight)
-        # init.bias_init_zero_(self.norm_out.bias)
+        init.bias_init_one_(self.norm_out.weight)
+        init.bias_init_zero_(self.norm_out.bias)
 
-        # init.final_init_(self.p_out.weight)
-        # init.gating_init_(self.g_out.weight)
+        init.final_init_(self.p_out.weight)
+        init.gating_init_(self.g_out.weight)
 
     def forward(self, x: Tensor, mask: Tensor, use_kernels: bool = False) -> Tensor:
         """Perform a forward pass.

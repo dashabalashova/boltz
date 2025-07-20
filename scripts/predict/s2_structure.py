@@ -10,7 +10,7 @@ from pytorch_lightning import Trainer
 
 from boltz.data.module.inferencev2 import Boltz2InferenceDataModule
 from boltz.data.types import Manifest
-from boltz.data.write.writer import BoltzWriter
+from boltz.data.write.writer_screen import BoltzWriter_screen
 from boltz.main import (
     Boltz2DiffusionParams,
     BoltzSteeringParams,

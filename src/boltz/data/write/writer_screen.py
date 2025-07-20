@@ -14,7 +14,7 @@ from boltz.data.write.mmcif import to_mmcif
 from boltz.data.write.pdb import to_pdb
 
 
-class BoltzWriter(BasePredictionWriter):
+class BoltzWriter_screen(BasePredictionWriter):
     """Custom writer for predictions."""
 
     def __init__(
@@ -63,23 +63,38 @@ class BoltzWriter(BasePredictionWriter):
 
         # Get the records
         records: list[Record] = batch["record"]
+        batch_size = len(records)
+        multiplicity = prediction["coords"].shape[0] // batch_size
+
+        for k, v in list(prediction.items()):
+            if isinstance(v, torch.Tensor) and v.shape[0] == batch_size*multiplicity:
+                new_shape = (batch_size, multiplicity, *v.shape[1:])
+                prediction[k] = v.view(new_shape)
 
         # Get the predictions
         coords = prediction["coords"]
-        coords = coords.unsqueeze(0)
+        # coords = coords.unsqueeze(0)
 
         pad_masks = prediction["masks"]
 
         # Get ranking
         if "confidence_score" in prediction:
-            argsort = torch.argsort(prediction["confidence_score"], descending=True)
-            idx_to_rank = {idx.item(): rank for rank, idx in enumerate(argsort)}
-        # Handles cases where confidence summary is False
+            idx_to_rank_list = []
+            for n in range(batch_size):
+                sorted_idxs = torch.argsort(prediction["confidence_score"][n], descending=True)
+                idx_to_rank = {int(idx): rank for rank, idx in enumerate(sorted_idxs)}
+                idx_to_rank_list.append(idx_to_rank)
         else:
-            idx_to_rank = {i: i for i in range(len(records))}
+            idx_to_rank_list = [{j: j for j in range(multiplicity)} for _ in range(batch_size)]
 
         # Iterate over the records
-        for record, coord, pad_mask in zip(records, coords, pad_masks):
+        for n, (record, coord, pad_mask) in enumerate(zip(records, coords, pad_masks), start=0):
+            
+            idx_to_rank = idx_to_rank_list[n]
+
+            if len(pad_mask.shape)>1:
+                pad_mask = pad_mask.squeeze(0)
+            
             # Load the structure
             path = self.data_dir / f"{record.id}.npz"
             if self.boltz2:
@@ -153,27 +168,27 @@ class BoltzWriter(BasePredictionWriter):
                 # Get plddt's
                 plddts = None
                 if "plddt" in prediction:
-                    plddts = prediction["plddt"][model_idx]
+                    plddts = prediction["plddt"][n][model_idx]
 
-                # Create path name
-                outname = f"{record.id}_model_{idx_to_rank[model_idx]}"
+                # # Create path name
+                # outname = f"{record.id}_model_{idx_to_rank[model_idx]}"
 
-                # Save the structure
-                if self.output_format == "pdb":
-                    path = struct_dir / f"{outname}.pdb"
-                    with path.open("w") as f:
-                        f.write(
-                            to_pdb(new_structure, plddts=plddts, boltz2=self.boltz2)
-                        )
-                elif self.output_format == "mmcif":
-                    path = struct_dir / f"{outname}.cif"
-                    with path.open("w") as f:
-                        f.write(
-                            to_mmcif(new_structure, plddts=plddts, boltz2=self.boltz2)
-                        )
-                else:
-                    path = struct_dir / f"{outname}.npz"
-                    np.savez_compressed(path, **asdict(new_structure))
+                # # Save the structure
+                # if self.output_format == "pdb":
+                #     path = struct_dir / f"{outname}.pdb"
+                #     with path.open("w") as f:
+                #         f.write(
+                #             to_pdb(new_structure, plddts=plddts, boltz2=self.boltz2)
+                #         )
+                # elif self.output_format == "mmcif":
+                #     path = struct_dir / f"{outname}.cif"
+                #     with path.open("w") as f:
+                #         f.write(
+                #             to_mmcif(new_structure, plddts=plddts, boltz2=self.boltz2)
+                #         )
+                # else:
+                #     path = struct_dir / f"{outname}.npz"
+                #     np.savez_compressed(path, **asdict(new_structure))
 
                 if self.boltz2 and record.affinity and idx_to_rank[model_idx] == 0:
                     path = struct_dir / f"pre_affinity_{record.id}.npz"
@@ -198,20 +213,8 @@ class BoltzWriter(BasePredictionWriter):
                         "complex_pde",
                         "complex_ipde",
                     ]:
-                        confidence_summary_dict[key] = prediction[key][model_idx].item()
-                    confidence_summary_dict["chains_ptm"] = {
-                        idx: prediction["pair_chains_iptm"][idx][idx][model_idx].item()
-                        for idx in prediction["pair_chains_iptm"]
-                    }
-                    confidence_summary_dict["pair_chains_iptm"] = {
-                        idx1: {
-                            idx2: prediction["pair_chains_iptm"][idx1][idx2][
-                                model_idx
-                            ].item()
-                            for idx2 in prediction["pair_chains_iptm"][idx1]
-                        }
-                        for idx1 in prediction["pair_chains_iptm"]
-                    }
+                        confidence_summary_dict[key] = prediction[key][n][model_idx].item()
+
                     with path.open("w") as f:
                         f.write(
                             json.dumps(
@@ -221,7 +224,7 @@ class BoltzWriter(BasePredictionWriter):
                         )
 
                     # Save plddt
-                    plddt = prediction["plddt"][model_idx]
+                    plddt = prediction["plddt"][n][model_idx]
                     path = (
                         struct_dir
                         / f"plddt_{record.id}_model_{idx_to_rank[model_idx]}.npz"
@@ -230,7 +233,7 @@ class BoltzWriter(BasePredictionWriter):
 
                 # Save pae
                 if "pae" in prediction:
-                    pae = prediction["pae"][model_idx]
+                    pae = prediction["pae"][n][model_idx]
                     path = (
                         struct_dir
                         / f"pae_{record.id}_model_{idx_to_rank[model_idx]}.npz"
@@ -239,23 +242,12 @@ class BoltzWriter(BasePredictionWriter):
 
                 # Save pde
                 if "pde" in prediction:
-                    pde = prediction["pde"][model_idx]
+                    pde = prediction["pde"][n][model_idx]
                     path = (
                         struct_dir
                         / f"pde_{record.id}_model_{idx_to_rank[model_idx]}.npz"
                     )
                     np.savez_compressed(path, pde=pde.cpu().numpy())
-                
-            # Save embeddings
-            if self.write_embeddings and "s" in prediction and "z" in prediction:
-                s = prediction["s"].cpu().numpy()
-                z = prediction["z"].cpu().numpy()
-
-                path = (
-                    struct_dir
-                    / f"embeddings_{record.id}.npz"
-                )
-                np.savez_compressed(path, s=s, z=z)
 
     def on_predict_epoch_end(
         self,
@@ -267,7 +259,7 @@ class BoltzWriter(BasePredictionWriter):
         print(f"Number of failed examples: {self.failed}")  # noqa: T201
 
 
-class BoltzAffinityWriter(BasePredictionWriter):
+class BoltzAffinityWriter_screen(BasePredictionWriter):
     """Custom writer for predictions."""
 
     def __init__(
@@ -299,39 +291,42 @@ class BoltzAffinityWriter(BasePredictionWriter):
         batch_idx: int,  # noqa: ARG002
         dataloader_idx: int,  # noqa: ARG002
     ) -> None:
+        batch_size = len(batch_indices)
         """Write the predictions to disk."""
         if prediction["exception"]:
             self.failed += 1
             return
         # Dump affinity summary
-        affinity_summary = {}
-        pred_affinity_value = prediction["affinity_pred_value"]
-        pred_affinity_probability = prediction["affinity_probability_binary"]
-        affinity_summary = {
-            "affinity_pred_value": pred_affinity_value.item(),
-            "affinity_probability_binary": pred_affinity_probability.item(),
-        }
-        if "affinity_pred_value1" in prediction:
-            pred_affinity_value1 = prediction["affinity_pred_value1"]
-            pred_affinity_probability1 = prediction["affinity_probability_binary1"]
-            pred_affinity_value2 = prediction["affinity_pred_value2"]
-            pred_affinity_probability2 = prediction["affinity_probability_binary2"]
-            affinity_summary["affinity_pred_value1"] = pred_affinity_value1.item()
-            affinity_summary["affinity_probability_binary1"] = (
-                pred_affinity_probability1.item()
-            )
-            affinity_summary["affinity_pred_value2"] = pred_affinity_value2.item()
-            affinity_summary["affinity_probability_binary2"] = (
-                pred_affinity_probability2.item()
-            )
-
-        # Save the affinity summary
-        struct_dir = self.output_dir / batch["record"][0].id
-        struct_dir.mkdir(exist_ok=True)
-        path = struct_dir / f"affinity_{batch['record'][0].id}.json"
-
-        with path.open("w") as f:
-            f.write(json.dumps(affinity_summary, indent=4))
+        for n in range(batch_size):
+            affinity_summary = {}
+            pred_affinity_value = prediction["affinity_pred_value"][n]
+            pred_affinity_probability = prediction["affinity_probability_binary"][n]
+            affinity_summary = {
+                "affinity_pred_value": pred_affinity_value.item(),
+                "affinity_probability_binary": pred_affinity_probability.item(),
+            }
+            
+            if "affinity_pred_value1" in prediction:
+                pred_affinity_value1 = prediction["affinity_pred_value1"][n]
+                pred_affinity_probability1 = prediction["affinity_probability_binary1"][n]
+                pred_affinity_value2 = prediction["affinity_pred_value2"][n]
+                pred_affinity_probability2 = prediction["affinity_probability_binary2"][n]
+                affinity_summary["affinity_pred_value1"] = pred_affinity_value1.item()
+                affinity_summary["affinity_probability_binary1"] = (
+                    pred_affinity_probability1.item()
+                )
+                affinity_summary["affinity_pred_value2"] = pred_affinity_value2.item()
+                affinity_summary["affinity_probability_binary2"] = (
+                    pred_affinity_probability2.item()
+                )
+    
+            # Save the affinity summary
+            struct_dir = self.output_dir / batch["record"][n].id
+            struct_dir.mkdir(exist_ok=True)
+            path = struct_dir / f"affinity_{batch['record'][n].id}.json"
+    
+            with path.open("w") as f:
+                f.write(json.dumps(affinity_summary, indent=4))
 
     def on_predict_epoch_end(
         self,

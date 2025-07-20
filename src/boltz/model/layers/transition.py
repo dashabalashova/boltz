@@ -37,12 +37,12 @@ class Transition(nn.Module):
         self.silu = nn.SiLU()
         self.hidden = hidden
 
-        # init.bias_init_one_(self.norm.weight)
-        # init.bias_init_zero_(self.norm.bias)
+        init.bias_init_one_(self.norm.weight)
+        init.bias_init_zero_(self.norm.bias)
 
-        # init.lecun_normal_init_(self.fc1.weight)
-        # init.lecun_normal_init_(self.fc2.weight)
-        # init.final_init_(self.fc3.weight)
+        init.lecun_normal_init_(self.fc1.weight)
+        init.lecun_normal_init_(self.fc2.weight)
+        init.final_init_(self.fc3.weight)
 
     def forward(self, x: Tensor, chunk_size: int = None) -> Tensor:
         """Perform a forward pass.

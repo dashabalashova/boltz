@@ -585,18 +585,17 @@ def process_input(  # noqa: C901, PLR0912, PLR0915, D103
         if to_generate:
             msg = f"Generating MSA for {path} with {len(to_generate)} protein entities."
             click.echo(msg)
-            if target_id+"_0.csv" not in os.listdir(msa_dir):  # noqa: PTH208
-                compute_msa(
-                    data=to_generate,
-                    target_id=target_id,
-                    msa_dir=msa_dir,
-                    msa_server_url=msa_server_url,
-                    msa_pairing_strategy=msa_pairing_strategy,
-                    msa_server_username=msa_server_username,
-                    msa_server_password=msa_server_password,
-                    api_key_header=api_key_header,
-                    api_key_value=api_key_value,
-                )
+            compute_msa(
+                data=to_generate,
+                target_id=target_id,
+                msa_dir=msa_dir,
+                msa_server_url=msa_server_url,
+                msa_pairing_strategy=msa_pairing_strategy,
+                msa_server_username=msa_server_username,
+                msa_server_password=msa_server_password,
+                api_key_header=api_key_header,
+                api_key_value=api_key_value,
+            )
 
         # Parse MSA data
         msas = sorted({c.msa_id for c in target.record.chains if c.msa_id != -1})

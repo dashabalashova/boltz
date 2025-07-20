@@ -381,12 +381,12 @@ class AtomDiffusion(Module):
 
             with torch.no_grad():
                 atom_coords_denoised = torch.zeros_like(atom_coords_noisy)
-                if batch_size==1:
+                if batch_size == 1:
                     sample_ids = torch.arange(multiplicity).to(atom_coords_noisy.device)
                     sample_ids_chunks = sample_ids.chunk(
                         multiplicity % max_parallel_samples + 1
                     )
-
+    
                     for sample_ids_chunk in sample_ids_chunks:
                         atom_coords_denoised_chunk = self.preconditioned_network_forward(
                             atom_coords_noisy[sample_ids_chunk],
@@ -398,10 +398,9 @@ class AtomDiffusion(Module):
                         )
                         atom_coords_denoised[sample_ids_chunk] = atom_coords_denoised_chunk
                 else:
+                    #####
                     multiplicity_ids = torch.arange(multiplicity).to(atom_coords_noisy.device)
-                    multiplicity_ids_chunks = multiplicity_ids.chunk(
-                        multiplicity % max_parallel_samples + 1
-                    )
+                    multiplicity_ids_chunks = multiplicity_ids.chunk(multiplicity % max_parallel_samples + 1)
 
                     for multiplicity_ids_chunk in multiplicity_ids_chunks:
 
@@ -416,10 +415,9 @@ class AtomDiffusion(Module):
                             t_hat,
                             network_condition_kwargs=dict(
                                 multiplicity=multiplicity_ids_chunk.numel(),
-                                **network_condition_kwargs,
-                            ),
-                        )
+                                **network_condition_kwargs))
                         atom_coords_denoised[sample_ids_chunk] = atom_coords_denoised_chunk
+                    #####
 
                 if steering_args["fk_steering"] and (
                     (
@@ -611,7 +609,6 @@ class AtomDiffusion(Module):
         )
 
         return {
-            "noised_atom_coords": noised_atom_coords,
             "denoised_atom_coords": denoised_atom_coords,
             "sigmas": sigmas,
             "aligned_true_atom_coords": atom_coords,
@@ -629,7 +626,6 @@ class AtomDiffusion(Module):
     ):
         with torch.autocast("cuda", enabled=False):
             denoised_atom_coords = out_dict["denoised_atom_coords"].float()
-            noised_atom_coords = out_dict["noised_atom_coords"].float()
             sigmas = out_dict["sigmas"].float()
 
             resolved_atom_mask_uni = feats["atom_resolved_mask"].float()
@@ -642,7 +638,7 @@ class AtomDiffusion(Module):
                 multiplicity, 0
             )
 
-            align_weights = noised_atom_coords.new_ones(noised_atom_coords.shape[:2])
+            align_weights = denoised_atom_coords.new_ones(denoised_atom_coords.shape[:2])
             atom_type = (
                 torch.bmm(
                     feats["atom_to_token"].float(),

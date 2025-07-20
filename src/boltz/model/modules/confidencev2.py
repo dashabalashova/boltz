@@ -127,7 +127,7 @@ class ConfidenceModule(nn.Module):
                         s_inputs,
                         s,
                         z,
-                        x_pred[sample_idx * batch_size : sample_idx * batch_size + batch_size],
+                        x_pred[sample_idx  * batch_size : sample_idx * batch_size + batch_size],
                         feats,
                         pred_distogram_logits,
                         multiplicity=1,
