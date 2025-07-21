@@ -19,6 +19,13 @@ from boltz.main import (
 )
 from boltz.model.models.boltz2 import Boltz2
 
+import boltz.model.layers.initialize as init
+
+init.bias_init_one_   = lambda tensor: None
+init.bias_init_zero_  = lambda tensor: None
+init.lecun_normal_init_= lambda tensor: None
+init.final_init_      = lambda tensor: None
+
 
 def parse_args():  # noqa: ANN201, D103
     parser = argparse.ArgumentParser(description="Run Boltz2 affinity predictions")
