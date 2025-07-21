@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 from pytorch_lightning import Trainer
 
+import boltz.model.layers.initialize as init
 from boltz.data.module.inferencev2 import Boltz2InferenceDataModule
 from boltz.data.types import Manifest
 from boltz.data.write.writer_screen import BoltzAffinityWriter_screen
@@ -19,12 +20,10 @@ from boltz.main import (
 )
 from boltz.model.models.boltz2 import Boltz2
 
-import boltz.model.layers.initialize as init
-
-init.bias_init_one_   = lambda tensor: None
-init.bias_init_zero_  = lambda tensor: None
-init.lecun_normal_init_= lambda tensor: None
-init.final_init_      = lambda tensor: None
+init.bias_init_one_   = lambda tensor: None  # noqa: ARG005
+init.bias_init_zero_  = lambda tensor: None  # noqa: ARG005
+init.lecun_normal_init_= lambda tensor: None  # noqa: ARG005
+init.final_init_      = lambda tensor: None  # noqa: ARG005
 
 
 def parse_args():  # noqa: ANN201, D103
