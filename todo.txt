@@ -1,2 +1,6 @@
-python3 projects/cache2/run_samples.py --n-samples 4 --num-seeds 1 --num-repeats 1 --batch-sizes 1 2
-python3 projects/cache2/run_samples.py --n-samples 64 --num-seeds 2 --num-repeats 4 --batch-sizes 1 2 4 8
+python3 scripts/screen/screen.py \
+  --project_name cache2 \
+  --smiles_tsv data/cache2/processed/smiles.tsv \
+  --protein_fasta data/cache2/processed/protein.fasta \
+  --n_samples 64 \
+  --batch_size 8
