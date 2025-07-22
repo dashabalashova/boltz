@@ -55,12 +55,12 @@ def main() -> None:  # noqa: D103
     )
     parser.add_argument(
         "--preprocess_script", type=Path,
-        default=Path("scripts/screen/s0_preprocess.py"),
+        default=Path("scripts/screen/process_input.py"),
         help="Path to s0_preprocess.py"
     )
     parser.add_argument(
         "--screen_script", type=Path,
-        default=Path("scripts/screen/s1_input_screen.py"),
+        default=Path("scripts/screen/process_msa.py"),
         help="Path to s1_input_screen.py"
     )
     parser.add_argument(
