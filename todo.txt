@@ -1,3 +1,5 @@
+python3 projects/cache2/data_preprocess.py
+
 python3 scripts/screen/screen.py \
   --project_name cache2 \
   --smiles_tsv data/cache2/processed/smiles.tsv \
