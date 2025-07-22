@@ -109,6 +109,8 @@ def main():
         b = args.batch_size
         name   = args.project_name + f"_n{args.n_samples}_g{g}_b{b}"
         target = args.results_dir / name
+        if target.exists():
+            shutil.rmtree(target)
         shutil.move(screen_out, target)
 
         # structure

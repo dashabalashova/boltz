@@ -34,6 +34,13 @@ def copy_msa_files(out_dir: Path, n_files: int) -> None:
         shutil.copy(src, dst)
         print(f"Copied {src.name} → {dst.name}")
 
+    src = msa_dir / "lig_0_1.csv"
+    if src.exists():
+        for i in range(1, n_files):
+            dst = msa_dir / f"lig_{i}_1.csv"
+            shutil.copy(src, dst)
+            print(f"Copied {src.name} → {dst.name}")
+
 
 def run_batch(yamls: list[Path], script: Path, out_dir: Path) -> None:
     """

@@ -4,27 +4,28 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+import string
 
 
-def read_first_fasta_sequence(fasta_path: Path) -> str:
+def read_all_fasta_sequences(path: Path) -> list[tuple[str,str]]:
     """
-    Reads the first FASTA record from the given file.
-    Returns the sequence as a string.
-    """  # noqa: D205, D401
+    Returns a list of (header_id, sequence) tuples in the order they appear.
+    header_id is whatever follows the '>' up to whitespace.
+    """
+    seqs = []
     header = None
-    seq_lines: list[str] = []
-    with fasta_path.open("r", encoding="utf-8") as f:
-        for raw in f:
-            line = raw.strip()
-            if not line:
-                continue
-            if line.startswith(">"):
-                if header is not None:
-                    break
-                header = line[1:]
-            else:
-                seq_lines.append(line)
-    return "".join(seq_lines)
+    seq_lines = []
+    for line in path.read_text().splitlines():
+        if line.startswith(">"):
+            if header is not None:
+                seqs.append((header, "".join(seq_lines)))
+            header    = line[1:].split()[0]
+            seq_lines = []
+        else:
+            seq_lines.append(line.strip())
+    if header is not None:
+        seqs.append((header, "".join(seq_lines)))
+    return seqs
 
 
 def parse_args() -> argparse.Namespace:  # noqa: D103
@@ -60,7 +61,7 @@ def main() -> None:  # noqa: D103
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Read the protein sequence
-    protein_seq = read_first_fasta_sequence(fasta_path)
+    protein_seq = read_all_fasta_sequences(fasta_path)
 
     # Read the TSV with 'id' and 'smiles'
     df = pd.read_csv(smiles_path, sep="\t", dtype=str)
@@ -70,26 +71,65 @@ def main() -> None:  # noqa: D103
             msg
         )
 
-    # Generate YAML for each ligand
+    # # Generate YAML for each ligand
+    # for _, row in df.iterrows():
+    #     lig_id = row["id"]
+    #     lig_sm = row["smiles"]
+    #     yaml_text = (
+    #         "version: 1\n"
+    #         "sequences:\n"
+    #         "  - protein:\n"
+    #         "      id: A\n"
+    #         f"      sequence: \"{protein_seq}\"\n"
+    #         "  - ligand:\n"
+    #         "      id: B\n"
+    #         f"      smiles: '{lig_sm}'\n"
+    #         "properties:\n"
+    #         "  - affinity:\n"
+    #         "      binder: B\n"
+    #     )
+    #     (out_dir / f"{lig_id}.yaml").write_text(yaml_text, encoding="utf-8")
+
+    # print(f"Generated {len(df)} YAML files in {out_dir}")  # noqa: T201
+
+    proteins = read_all_fasta_sequences(fasta_path)  
+    # e.g. proteins = [("header1", "SEQUENCE1"), ("header2", "SEQUENCE2")]
+
+    # Pre‑make a list of labels: ["A","B","C",…]
+    labels = list(string.ascii_uppercase)
+
     for _, row in df.iterrows():
         lig_id = row["id"]
         lig_sm = row["smiles"]
-        yaml_text = (
-            "version: 1\n"
-            "sequences:\n"
-            "  - protein:\n"
-            "      id: A\n"
-            f"      sequence: \"{protein_seq}\"\n"
-            "  - ligand:\n"
-            "      id: B\n"
-            f"      smiles: '{lig_sm}'\n"
-            "properties:\n"
-            "  - affinity:\n"
-            "      binder: B\n"
-        )
-        (out_dir / f"{lig_id}.yaml").write_text(yaml_text, encoding="utf-8")
 
-    print(f"Generated {len(df)} YAML files in {out_dir}")  # noqa: T201
+        # Assign A, B, … to each protein in order:
+        seq_yaml_lines = ["sequences:"]
+        for i, (header, seq) in enumerate(proteins):
+            letter = labels[i]
+            seq_yaml_lines += [
+                f"  - protein:",
+                f"      id: {letter}",
+                f"      sequence: \"{seq}\"",
+            ]
+
+        # Now pick the next free letter for your ligand:
+        ligand_letter = labels[len(proteins)]
+        seq_yaml_lines += [
+            "  - ligand:",
+            f"      id: {ligand_letter}",
+            f"      smiles: '{lig_sm}'",
+        ]
+
+        # Build the rest:
+        yaml_text = "\n".join(
+            ["version: 1", *seq_yaml_lines,
+            "properties:",
+            "  - affinity:",
+            f"      binder: {ligand_letter}", ""]
+        )
+
+        out_path = out_dir / f"{lig_id}.yaml"
+        out_path.write_text(yaml_text, encoding="utf-8")
 
 
 if __name__ == "__main__":
