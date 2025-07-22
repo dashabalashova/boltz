@@ -17,59 +17,59 @@ def main() -> None:  # noqa: D103
         description="Pipeline: subsample, preprocess, screen, structure & affinity runs"
     )
     parser.add_argument(
-        "--n-samples", "-n", type=int, default=64,
+        "--n_samples", "-n", type=int, default=64,
         help="Number of SMILES to sample"
     )
     parser.add_argument(
-        "--num-seeds", "-S", type=int, default=5,
+        "--num_seeds", "-S", type=int, default=5,
         help="Number of different random seeds"
     )
     parser.add_argument(
-        "--num-repeats", "-R", type=int, default=2,
+        "--num_repeats", "-R", type=int, default=2,
         help="Number of repeats per seed"
     )
     parser.add_argument(
-        "--batch-sizes", "-B", type=int, nargs="+",
+        "--batch_sizes", "-B", type=int, nargs="+",
         default=[1, 2, 4, 8],
         help="List of batch sizes to test"
     )
     parser.add_argument(
-        "--raw-fasta", "-f", type=Path,
+        "--raw_fasta", "-f", type=Path,
         default=Path("data/cache2/raw/YP_009725308.1.fasta"),
         help="Input FASTA file"
     )
     parser.add_argument(
-        "--processed-dir", "-p", type=Path,
+        "--processed_dir", "-p", type=Path,
         default=Path("data/cache2/processed"),
         help="Base processed directory (for smiles.tsv & yamls)"
     )
     parser.add_argument(
-        "--results-dir", "-r", type=Path,
+        "--results_dir", "-r", type=Path,
         default=Path("results"),
         help="Base results directory"
     )
     parser.add_argument(
-        "--subsample-script", type=Path,
+        "--subsample_script", type=Path,
         default=Path("projects/cache2/subsample.py"),
         help="Path to subsample.py"
     )
     parser.add_argument(
-        "--preprocess-script", type=Path,
+        "--preprocess_script", type=Path,
         default=Path("scripts/screen/s0_preprocess.py"),
         help="Path to s0_preprocess.py"
     )
     parser.add_argument(
-        "--screen-script", type=Path,
+        "--screen_script", type=Path,
         default=Path("scripts/screen/s1_input_screen.py"),
         help="Path to s1_input_screen.py"
     )
     parser.add_argument(
-        "--structure-script", type=Path,
+        "--structure_script", type=Path,
         default=Path("scripts/predict/s2_structure.py"),
         help="Path to s2_structure.py"
     )
     parser.add_argument(
-        "--affinity-script", type=Path,
+        "--affinity_script", type=Path,
         default=Path("scripts/predict/s3_affinity.py"),
         help="Path to s3_affinity.py"
     )

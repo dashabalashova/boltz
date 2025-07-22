@@ -54,13 +54,13 @@ def parse_args() -> argparse.Namespace:
         description="Run s1_inputs.py on a set of ligand YAMLs, replicate MSA outputs, then rerun in batch."
     )
     parser.add_argument(
-        "--yamls-dir", "-y",
+        "--yamls_dir", "-y",
         type=Path,
         required=True,
         help="Directory containing ligand YAMLs (lig_*.yaml), excluding screen.yaml"
     )
     parser.add_argument(
-        "--out-dir", "-o",
+        "--out_dir", "-o",
         type=Path,
         required=True,
         help="Output directory for MSA results (must contain an 'msa' subfolder)"

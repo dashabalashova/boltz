@@ -32,21 +32,21 @@ def parse_args() -> argparse.Namespace:  # noqa: D103
         description="Generate YAML files from a single FASTA and a smiles.tsv"
     )
     parser.add_argument(
-        "--fasta-path", "-f",
+        "--fasta_path", "-f",
         type=Path,
         required=True,
         help="Path to the input FASTA file"
     )
     parser.add_argument(
-        "--smiles-path", "-s",
+        "--smiles_path", "-s",
         type=Path,
         required=True,
         help="Path to the TSV file with columns 'id' and 'smiles'"
     )
     parser.add_argument(
-        "--out-dir", "-o",
+        "--out_dir", "-o",
         type=Path,
-        default=Path("yamls_CACHE2_v3"),
+        required=True,
         help="Directory to write the YAML files"
     )
     return parser.parse_args()

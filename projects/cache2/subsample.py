@@ -11,13 +11,13 @@ def parse_args():
         description="Sample SMILES from CACHE2 Excel and write to a TSV."
     )
     parser.add_argument(
-        "--output-tsv", "-o",
+        "--output_tsv", "-o",
         type=Path,
         required=True,
         help="Path to the output TSV file"
     )
     parser.add_argument(
-        "--n-samples", "-n",
+        "--n_samples", "-n",
         type=int,
         default=8,
         help="Number of samples to draw (default: 8)"
