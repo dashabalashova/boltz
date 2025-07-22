@@ -71,31 +71,8 @@ def main() -> None:  # noqa: D103
             msg
         )
 
-    # # Generate YAML for each ligand
-    # for _, row in df.iterrows():
-    #     lig_id = row["id"]
-    #     lig_sm = row["smiles"]
-    #     yaml_text = (
-    #         "version: 1\n"
-    #         "sequences:\n"
-    #         "  - protein:\n"
-    #         "      id: A\n"
-    #         f"      sequence: \"{protein_seq}\"\n"
-    #         "  - ligand:\n"
-    #         "      id: B\n"
-    #         f"      smiles: '{lig_sm}'\n"
-    #         "properties:\n"
-    #         "  - affinity:\n"
-    #         "      binder: B\n"
-    #     )
-    #     (out_dir / f"{lig_id}.yaml").write_text(yaml_text, encoding="utf-8")
-
-    # print(f"Generated {len(df)} YAML files in {out_dir}")  # noqa: T201
-
     proteins = read_all_fasta_sequences(fasta_path)  
-    # e.g. proteins = [("header1", "SEQUENCE1"), ("header2", "SEQUENCE2")]
 
-    # Pre‑make a list of labels: ["A","B","C",…]
     labels = list(string.ascii_uppercase)
 
     for _, row in df.iterrows():
