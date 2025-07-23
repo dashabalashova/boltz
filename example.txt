@@ -1,3 +1,5 @@
+# RAW_DIR = "data/cache2/raw"
+
 python3 projects/cache2/data_preprocess.py
 
 python3 scripts/screen/screen.py \
