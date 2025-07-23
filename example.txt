@@ -11,4 +11,4 @@ python3 scripts/screen/screen.py \
 
 python3 projects/cache2/affinity_postprocess.py
 
-# AFFINITY_DF = "results/cache2_affinity.tsv"
+# AFFINITY_DF_DIR = "results/cache2_affinity.tsv"
