@@ -94,7 +94,7 @@ def main():
         ])
 
         # 3) screening / MSA → screen_out
-        screen_out = args.results_dir / f"screen_n{args.g_samples}_g{g}"
+        screen_out = args.results_dir / f"screen_g{g}"
         run([
             sys.executable, str(args.screen_script),
             "--yamls_dir", str(yamls_dir),
@@ -103,7 +103,7 @@ def main():
 
         # 4) structure & affinity per batch & repeat
         b = args.batch_size
-        name   = "screen" + f"_n{args.g_samples}_g{g}_b{b}"
+        name   = f"screen_g{g}_b{b}"
         target = args.results_dir / name
         if target.exists():
             shutil.rmtree(target)
@@ -126,10 +126,10 @@ def main():
         elapsed = round(group_end - group_start, 3)
         group_times.append((g, elapsed))
     
-    out_path = args.results_dir / f"screen_n{args.g_samples}_group_times.txt"
-    with open(out_path, 'w') as f:
-        for g, t in group_times:
-            f.write(f"{g} {t}\n")
+    # out_path = args.results_dir / f"screen_n{args.g_samples}_group_times.txt"
+    # with open(out_path, 'w') as f:
+    #     for g, t in group_times:
+    #         f.write(f"{g} {t}\n")
 
     merged = []
     for g in range(groups):
@@ -138,7 +138,7 @@ def main():
 
         preds = []
 
-        pattern = str(args.results_dir / f"screen_n{args.g_samples}_g{g}_b{args.batch_size}" / "predictions" / "*" / "affinity_*.json")
+        pattern = str(args.results_dir / f"screen_g{g}_b{args.batch_size}" / "predictions" / "*" / "affinity_*.json")
         for fp in glob.glob(pattern):
             data = json.load(open(fp))
             ligand = fp.split('/')[-2]
