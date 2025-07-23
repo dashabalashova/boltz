@@ -8,3 +8,7 @@ python3 scripts/screen/screen.py \
   --protein_fasta data/cache2/processed/protein.fasta \
   --n_samples 64 \
   --batch_size 8
+
+python3 projects/cache2/affinity_postprocess.py
+
+# AFFINITY_DF = "results/cache2_affinity.tsv"
