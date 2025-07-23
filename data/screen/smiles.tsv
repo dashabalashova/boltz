@@ -1,0 +1,11 @@
+id_raw	smiles
+CACHE_1413_1	C1Cc2cc(ccc2N(C1)C(c1coc(C2CCOCC2)n1)=O)c1ccccc1
+CACHE_1413_2	Cc1c2c(NCCN3Cc4ccccc4OCC3=O)ncnc2on1
+CACHE_1413_3	COc1ccc(cc1)c1cc(c2nc3c4ccccc4ncn3n2)n[nH]1
+CACHE_1413_4	Cn1c(c2cccc(c2)NC(C2=CC3CCCCC=3NC2=O)=O)nnn1
+CACHE_1413_5	C1C2(CC1(C2)c1ccccc1)C(Nc1ccc2c(c1)c(C(N)=O)n[nH]2)=O
+CACHE_1413_6	C1CN(CC2Cc3ccccc3C2)Cc2c3cc(ccc3[nH]c12)C(O)=O
+CACHE_1413_7	C1CN(CCC1N1CCc2ccccc2C1)C(c1ccc2c(c1)nn[nH]2)=O
+CACHE_1413_8	Cc1cc(C)n(c2ccc(cn2)c2nc(c3c4CCCCc4on3)on2)n1
+CACHE_1413_9	C1CN(CCC1c1nnc2ccccn12)C(Nc1cccc2c1OCO2)=O
+CACHE_1413_10	C1Cc2ccc(cc2C1)NC(CN1CCC2(C1)C(Nc1ccccc12)=O)=O

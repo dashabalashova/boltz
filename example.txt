@@ -1,14 +1,7 @@
-# RAW_DIR = "data/cache2/raw"
+python3 scripts/screen/run_screen.py \
+  --smiles_tsv data/screen/smiles.tsv \
+  --protein_fasta data/screen/protein.fasta \
+  --batch_size 8 \
+  --results_dir results/screen
 
-python3 projects/cache2/data_preprocess.py
-
-python3 scripts/screen/screen.py \
-  --project_name cache2 \
-  --smiles_tsv data/cache2/processed/smiles.tsv \
-  --protein_fasta data/cache2/processed/protein.fasta \
-  --n_samples 64 \
-  --batch_size 8
-
-python3 projects/cache2/affinity_postprocess.py
-
-# AFFINITY_DF_DIR = "results/cache2_affinity.tsv"
+# results : "results/screen/affinity_pred_values.tsv"
