@@ -1095,6 +1095,14 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     screening_mode: bool = False,
     batch_size: int = 1
 ) -> None:
+
+    import boltz.model.layers.initialize as init
+
+    init.bias_init_one_ = lambda x: None
+    init.bias_init_zero_ = lambda x: None
+    init.lecun_normal_init_ = lambda x: None
+    init.final_init_ = lambda x: None
+    
     """Run predictions with Boltz."""
     # If cpu, write a friendly warning
     if accelerator == "cpu":
