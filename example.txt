@@ -1,0 +1,1 @@
+boltz predict data/yamls/ --use_msa_server --screening_mode --batch_size 2 --diffusion_samples 3
