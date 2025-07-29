@@ -998,6 +998,12 @@ def cli() -> None:
     help="Whether to add the Molecular Weight correction to the affinity value head.",
 )
 @click.option(
+    "--recycling_steps_affinity",
+    type=int,
+    help="The number of recycling steps to use for affinity prediction. Default is 5.",
+    default=5,
+)
+@click.option(
     "--sampling_steps_affinity",
     type=int,
     help="The number of sampling steps to use for affinity prediction. Default is 200.",
@@ -1065,6 +1071,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     recycling_steps: int = 3,
     sampling_steps: int = 200,
     diffusion_samples: int = 1,
+    recycling_steps_affinity: int = 5,
     sampling_steps_affinity: int = 200,
     diffusion_samples_affinity: int = 3,
     max_parallel_samples: Optional[int] = None,
@@ -1447,7 +1454,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         )
 
         predict_affinity_args = {
-            "recycling_steps": 5,
+            "recycling_steps": recycling_steps_affinity,
             "sampling_steps": sampling_steps_affinity,
             "diffusion_samples": diffusion_samples_affinity,
             "max_parallel_samples": 1,
