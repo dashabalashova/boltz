@@ -1197,13 +1197,19 @@ def predict(  # noqa: C901, PLR0915, PLR0912
             y_id = y.stem
             src = msa_dir / f"{y_prot_id}_0.csv"
             dst = msa_dir / f"{y_id}_0.csv"
-            shutil.copy(src, dst)
+            try:
+                shutil.copy(src, dst)
+            except:
+                pass
         if (msa_dir / f"{y_prot_id}_1.csv").exists():
             for y in yamls[1:]:
                 y_id = y.stem
                 src = msa_dir / f"{y_prot_id}_1.csv"
                 dst = msa_dir / f"{y_id}_1.csv"
-                shutil.copy(src, dst)
+                try:
+                    shutil.copy(src, dst)
+                except:
+                    pass
         
         processed_dir = out_dir / "processed"
         if processed_dir.exists() and processed_dir.is_dir():
